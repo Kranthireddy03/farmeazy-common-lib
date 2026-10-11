@@ -1,0 +1,43 @@
+package com.farmeazy.common.logging;
+
+public enum LogEvent {
+    // Request Lifecycle
+    REQUEST_RECEIVED,
+    RESPONSE_SENT,
+
+    // Authentication & User
+    AUTHENTICATION_SUCCESS,
+    AUTHENTICATION_FAILURE,
+    TOKEN_REFRESHED,
+    USER_REGISTERED,
+    USER_LOGOUT,
+    PASSWORD_CHANGED,
+    OTP_SENT,
+    OTP_VERIFIED,
+
+    // Database Operations
+    DATABASE_QUERY,
+    DB_READ,
+    DB_READ_SUCCESS,
+    DB_INSERT,
+    DB_INSERT_SUCCESS,
+    DB_UPDATE,
+    DB_UPDATE_SUCCESS,
+    DB_DELETE,
+    DB_DELETE_SUCCESS,
+    DB_OPERATION_FAILED,
+
+    // Business Logic & Integrations
+    VALIDATION_FAILED,
+    BUSINESS_LOGIC,
+    INTEGRATION_CALL,
+    INTEGRATION_SUCCESS,
+    INTEGRATION_FAILURE,
+
+    // General
+    SYSTEM_STARTUP,
+    SYSTEM_SHUTDOWN,
+    ERROR,
+    SYSTEM_ERROR,
+    SECURITY_ALERT
+}

@@ -1,0 +1,40 @@
+name: Common Library CI & Publish
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-publish:
+    name: Build, Test & Publish to GitHub Packages
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17 & GitHub Packages
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+          server-id: github
+          server-username: ${{ github.actor }}
+          server-password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Grant execute permission for Maven Wrapper
+        run: chmod +x mvnw
+
+      - name: Run Maven Build and Verify
+        run: ./mvnw clean verify --batch-mode
+
+      - name: Publish to GitHub Packages
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        run: ./mvnw deploy -DskipTests --batch-mode
