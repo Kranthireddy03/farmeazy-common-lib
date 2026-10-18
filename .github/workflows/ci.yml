@@ -1,14 +1,30 @@
-name: Common Library CI & Publish
+name: FarmEazy Common Library CI & Publish
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
   pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
   packages: write
+  actions: write
 
 jobs:
   build-and-publish:
@@ -36,5 +52,7 @@ jobs:
         run: ./mvnw clean verify --batch-mode
 
       - name: Publish to GitHub Packages
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: ./mvnw deploy -DskipTests --batch-mode
+
+      # Storage Efficiency: ZERO persistent artifacts uploaded!

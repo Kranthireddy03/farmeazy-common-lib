@@ -7,7 +7,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -23,11 +22,15 @@ import java.util.UUID;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 15)
-@RequiredArgsConstructor
 public class ApiAuditPersistenceFilter extends OncePerRequestFilter {
 
     private final ApiAuditTraceRepository auditRepository;
     private final AuditPayloadEncryptor encryptor;
+
+    public ApiAuditPersistenceFilter(ApiAuditTraceRepository auditRepository, AuditPayloadEncryptor encryptor) {
+        this.auditRepository = auditRepository;
+        this.encryptor = encryptor;
+    }
 
     @Value("${spring.application.name:UNKNOWN_SERVICE}")
     private String applicationName;

@@ -9,8 +9,8 @@ import com.farmeazy.common.entity.ApiAuditTrace;
 import com.farmeazy.common.entity.ExternalApiAuditTrace;
 import com.farmeazy.common.entity.AuditDecryptionPermission;
 import com.farmeazy.common.entity.DecryptionAuditLog;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,15 +18,28 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Service
-@RequiredArgsConstructor
-@Slf4j
 public class AuditDecryptionService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuditDecryptionService.class);
 
     private final ApiAuditTraceRepository auditRepository;
     private final ExternalApiAuditTraceRepository externalAuditRepository;
     private final AuditDecryptionPermissionRepository permissionRepository;
     private final DecryptionAuditLogRepository decryptionLogRepository;
     private final AuditPayloadEncryptor encryptor;
+
+    public AuditDecryptionService(
+            ApiAuditTraceRepository auditRepository,
+            ExternalApiAuditTraceRepository externalAuditRepository,
+            AuditDecryptionPermissionRepository permissionRepository,
+            DecryptionAuditLogRepository decryptionLogRepository,
+            AuditPayloadEncryptor encryptor) {
+        this.auditRepository = auditRepository;
+        this.externalAuditRepository = externalAuditRepository;
+        this.permissionRepository = permissionRepository;
+        this.decryptionLogRepository = decryptionLogRepository;
+        this.encryptor = encryptor;
+    }
 
     /**
      * Decrypts an audit payload securely.
