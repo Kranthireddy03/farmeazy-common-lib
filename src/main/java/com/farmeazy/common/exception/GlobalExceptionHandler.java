@@ -100,6 +100,20 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.METHOD_NOT_ALLOWED);
     }
 
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(org.springframework.web.servlet.resource.NoResourceFoundException ex, HttpServletRequest request) {
+        String correlationId = request.getHeader(RoleConstants.HEADER_CORRELATION_ID);
+        ErrorResponse response = ErrorResponse.builder()
+                .status(HttpStatus.NOT_FOUND.value())
+                .message("Resource not found: " + ex.getResourcePath())
+                .errorCode("RESOURCE_NOT_FOUND")
+                .timestamp(LocalDateTime.now())
+                .path(request.getRequestURI())
+                .requestId(correlationId)
+                .build();
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneralException(Exception ex, HttpServletRequest request) {
         String correlationId = request.getHeader(RoleConstants.HEADER_CORRELATION_ID);
