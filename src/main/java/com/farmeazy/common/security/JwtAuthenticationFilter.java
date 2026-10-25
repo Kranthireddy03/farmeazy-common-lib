@@ -40,8 +40,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(jwt)) {
             try {
                 if (!jwtUtils.validateToken(jwt)) {
-                    log.warn("Invalid or expired JWT token for [{} {}]", request.getMethod(), request.getRequestURI());
-                    writeUnauthorizedResponse(response, "Token expired or invalid");
+                    boolean expired = jwtUtils.isTokenExpired(jwt);
+                    String reason = expired ? "TOKEN_EXPIRED" : "INVALID_SIGNATURE";
+                    log.warn("[AUTH_REJECT] Category={} Method={} Path={}", reason, request.getMethod(), request.getRequestURI());
+                    writeUnauthorizedResponse(response, expired ? "Token expired" : "Invalid token signature", reason);
                     return;
                 }
 
@@ -55,18 +57,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (com.farmeazy.common.exception.UnauthorizedException e) {
                 SecurityContextHolder.clearContext();
-                log.warn("Session authentication rejected for [{} {}]: {}", request.getMethod(), request.getRequestURI(), e.getMessage());
-                writeUnauthorizedResponse(response, e.getMessage());
+                log.warn("[AUTH_REJECT] Category=SESSION_REVOKED_OR_INACTIVE Method={} Path={} Reason={}", request.getMethod(), request.getRequestURI(), e.getMessage());
+                writeUnauthorizedResponse(response, e.getMessage(), "SESSION_REVOKED_OR_INACTIVE");
                 return;
             } catch (io.jsonwebtoken.JwtException e) {
                 SecurityContextHolder.clearContext();
-                log.warn("JWT parsing/verification failed for [{} {}]: {}", request.getMethod(), request.getRequestURI(), e.getMessage());
-                writeUnauthorizedResponse(response, "Token verification failed: " + e.getMessage());
+                log.warn("[AUTH_REJECT] Category=TOKEN_MALFORMED Method={} Path={} Reason={}", request.getMethod(), request.getRequestURI(), e.getMessage());
+                writeUnauthorizedResponse(response, "Token verification failed: " + e.getMessage(), "TOKEN_MALFORMED");
                 return;
             } catch (Exception e) {
                 SecurityContextHolder.clearContext();
-                log.warn("Unexpected authentication failure for [{} {}]: {}", request.getMethod(), request.getRequestURI(), e.getMessage());
-                writeUnauthorizedResponse(response, "Authentication failed");
+                log.warn("[AUTH_REJECT] Category=AUTH_FAILED Method={} Path={} Reason={}", request.getMethod(), request.getRequestURI(), e.getMessage());
+                writeUnauthorizedResponse(response, "Authentication failed", "AUTH_FAILED");
                 return;
             }
         }
@@ -74,12 +76,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    private void writeUnauthorizedResponse(HttpServletResponse response, String message) throws IOException {
+    private void writeUnauthorizedResponse(HttpServletResponse response, String message, String reason) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
-        response.getWriter().write(String.format("{\"success\":false,\"error\":\"UNAUTHORIZED\",\"message\":\"%s\"}",
-                message != null ? message.replace("\"", "\\\"") : "Unauthorized"));
+        response.setHeader("X-Auth-Rejection-Reason", reason);
+        response.getWriter().write(String.format("{\"success\":false,\"error\":\"UNAUTHORIZED\",\"reason\":\"%s\",\"message\":\"%s\"}",
+                reason, message != null ? message.replace("\"", "\\\"") : "Unauthorized"));
     }
 
     private String parseJwt(HttpServletRequest request) {

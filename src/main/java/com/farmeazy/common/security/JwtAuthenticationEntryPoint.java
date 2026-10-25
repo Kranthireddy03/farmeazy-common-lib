@@ -36,12 +36,18 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
         }
     }
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(JwtAuthenticationEntryPoint.class);
+
     @Override
     public void commence(HttpServletRequest request,
                          HttpServletResponse response,
                          AuthenticationException authException) throws IOException {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setHeader("X-Auth-Rejection-Reason", "UNAUTHENTICATED_NO_CREDENTIALS");
+
+        log.warn("[AUTH_REJECT] Category=UNAUTHENTICATED_NO_CREDENTIALS Method={} Path={}",
+                request.getMethod(), request.getRequestURI());
 
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .status(HttpStatus.UNAUTHORIZED.value())
