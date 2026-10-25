@@ -23,14 +23,18 @@ public class SessionAccessVerifier {
     private final String secret;
 
     public SessionAccessVerifier(ObjectProvider<SessionStateStore> local,
-            @Value("${app.services.auth-service-url:${AUTH_SERVICE_URL:http://${AUTH_SERVICE_HOST:localhost}:${AUTH_SERVICE_PORT:8081}}}") String url,
+            @Value("${AUTH_SERVICE_URL:${app.services.auth-service-url:${AUTH_SERVICE_HOST:http://localhost}:${AUTH_SERVICE_PORT:8081}}}") String url,
             @Value("${app.internal-service-key:${INTERNAL_SERVICE_SECRET:}}") String secret) {
         this.local = local;
-        this.url = (url != null && !url.isBlank()) ? url : "http://localhost:8081";
-        this.secret = secret;
+        String resolvedUrl = (url != null && !url.isBlank()) ? url.trim() : "http://localhost:8081";
+        if (!resolvedUrl.startsWith("http://") && !resolvedUrl.startsWith("https://")) {
+            resolvedUrl = "http://" + resolvedUrl;
+        }
+        this.url = resolvedUrl;
+        this.secret = secret != null ? secret.trim() : "";
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(2000);
-        factory.setReadTimeout(2000);
+        factory.setConnectTimeout(600);
+        factory.setReadTimeout(1000);
         this.client = new RestTemplate(factory);
     }
 

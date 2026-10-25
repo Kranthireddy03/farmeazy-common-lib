@@ -35,10 +35,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        try {
-            String jwt = parseJwt(request);
+        String jwt = parseJwt(request);
 
-            if (StringUtils.hasText(jwt) && jwtUtils.validateToken(jwt)) {
+        if (StringUtils.hasText(jwt)) {
+            try {
+                if (!jwtUtils.validateToken(jwt)) {
+                    log.warn("Invalid or expired JWT token for [{} {}]", request.getMethod(), request.getRequestURI());
+                    writeUnauthorizedResponse(response, "Token expired or invalid");
+                    return;
+                }
+
                 UserPrincipal principal = jwtUtils.extractPrincipal(jwt);
                 sessions.requireActive(principal);
 
@@ -47,13 +53,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+            } catch (com.farmeazy.common.exception.UnauthorizedException e) {
+                SecurityContextHolder.clearContext();
+                log.warn("Session authentication rejected for [{} {}]: {}", request.getMethod(), request.getRequestURI(), e.getMessage());
+                writeUnauthorizedResponse(response, e.getMessage());
+                return;
+            } catch (io.jsonwebtoken.JwtException e) {
+                SecurityContextHolder.clearContext();
+                log.warn("JWT parsing/verification failed for [{} {}]: {}", request.getMethod(), request.getRequestURI(), e.getMessage());
+                writeUnauthorizedResponse(response, "Token verification failed: " + e.getMessage());
+                return;
+            } catch (Exception e) {
+                SecurityContextHolder.clearContext();
+                log.warn("Unexpected authentication failure for [{} {}]: {}", request.getMethod(), request.getRequestURI(), e.getMessage());
+                writeUnauthorizedResponse(response, "Authentication failed");
+                return;
             }
-        } catch (Exception e) {
-            SecurityContextHolder.clearContext();
-            log.debug("Request authentication rejected");
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private void writeUnauthorizedResponse(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        response.getWriter().write(String.format("{\"success\":false,\"error\":\"UNAUTHORIZED\",\"message\":\"%s\"}",
+                message != null ? message.replace("\"", "\\\"") : "Unauthorized"));
     }
 
     private String parseJwt(HttpServletRequest request) {
