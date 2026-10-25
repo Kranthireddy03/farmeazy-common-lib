@@ -22,6 +22,10 @@ public class SessionAccessVerifier {
     private final String url;
     private final String secret;
 
+    // High-performance in-memory micro-cache for active sessions (30s TTL)
+    private final java.util.Map<String, Long> activeSessionCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long POSITIVE_CACHE_TTL_MS = 30_000L; // 30 seconds
+
     public SessionAccessVerifier(ObjectProvider<SessionStateStore> local,
             @Value("${AUTH_SERVICE_URL:${app.services.auth-service-url:${AUTH_SERVICE_HOST:http://localhost}:${AUTH_SERVICE_PORT:8081}}}") String url,
             @Value("${app.internal-service-key:${INTERNAL_SERVICE_SECRET:}}") String secret) {
@@ -33,8 +37,8 @@ public class SessionAccessVerifier {
         this.url = resolvedUrl;
         this.secret = secret != null ? secret.trim() : "";
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(600);
-        factory.setReadTimeout(1000);
+        factory.setConnectTimeout(400);
+        factory.setReadTimeout(800);
         this.client = new RestTemplate(factory);
     }
 
@@ -57,6 +61,14 @@ public class SessionAccessVerifier {
             return;
         }
 
+        // Fast-path: check in-memory active session micro-cache
+        String cacheKey = principal.getId() + ":" + principal.getSessionId();
+        long now = System.currentTimeMillis();
+        Long validUntil = activeSessionCache.get(cacheKey);
+        if (validUntil != null && validUntil > now) {
+            return; // Validated in memory in 0.001ms!
+        }
+
         // Downstream microservices: internal service mesh session check
         if (secret == null || secret.length() < 32) {
             log.warn("Internal service key not configured (length < 32); relying on cryptographic JWT verification");
@@ -70,16 +82,33 @@ public class SessionAccessVerifier {
             var response = client.postForEntity(url + "/api/internal/auth/session-active", new HttpEntity<>(
                     Map.of("userId", principal.getId(), "sessionId", principal.getSessionId()), headers), Boolean.class);
 
-            if (response.getStatusCode().is2xxSuccessful() && Boolean.FALSE.equals(response.getBody())) {
-                // Auth service explicitly responded that the session is inactive / revoked
-                throw new UnauthorizedException("Session has been revoked or expired");
+            if (response.getStatusCode().is2xxSuccessful()) {
+                if (Boolean.FALSE.equals(response.getBody())) {
+                    activeSessionCache.remove(cacheKey);
+                    // Auth service explicitly responded that the session is inactive / revoked
+                    throw new UnauthorizedException("Session has been revoked or expired");
+                }
+                // Positive active session: cache for 30 seconds
+                activeSessionCache.put(cacheKey, now + POSITIVE_CACHE_TTL_MS);
+                if (activeSessionCache.size() > 5000) {
+                    activeSessionCache.entrySet().removeIf(e -> e.getValue() < now);
+                }
             }
         } catch (UnauthorizedException e) {
+            activeSessionCache.remove(cacheKey);
             throw e;
         } catch (Exception unavailable) {
             // Resilient fallback: network reachability or reboot of auth-service should not cascade-fail downstream services
             log.warn("Auth service session verifier unreachable at {} ({}): falling back to cryptographic JWT verification",
                     url, unavailable.getMessage());
+            // Short 10s grace window so threads aren't blocked on every request while auth-service is recovering
+            activeSessionCache.put(cacheKey, now + 10_000L);
+        }
+    }
+
+    public void invalidateSession(Long userId, String sessionId) {
+        if (userId != null && sessionId != null) {
+            activeSessionCache.remove(userId + ":" + sessionId);
         }
     }
 }
