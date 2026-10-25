@@ -25,10 +25,10 @@ public class JwtUtils {
 
     private static final Logger log = LoggerFactory.getLogger(JwtUtils.class);
 
-    @Value("${jwt.secret}")
+    @Value("${jwt.secret:${JWT_SECRET:${security.jwt.secret:${farmeazy.security.jwt.secret:}}}}")
     private String secret;
 
-    @Value("${jwt.expiration:900000}")
+    @Value("${jwt.expiration:${JWT_EXPIRATION:900000}}")
     private Long expiration;
 
     @PostConstruct
